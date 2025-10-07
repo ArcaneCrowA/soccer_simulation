@@ -291,7 +291,7 @@ def run_training(num_episodes, speed_multiplier=10):
             )
 
         last_episode = get_last_episode()
-        episode_num = last_episode + episode + 1  # continue numbering
+        episode_num = last_episode + 1  # continue numbering
         append_score(episode_num, real_madrid, kairat)
 
     # --- Save Models ---
