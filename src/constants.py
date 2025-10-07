@@ -22,5 +22,10 @@ CENTER_CIRCLE_RADIUS = 60
 # Frame rate
 FPS = 60
 
+# Game timing
+ROUND_DURATION = 45  # seconds
+MAX_ROUNDS = 2
+COUNTDOWN_TIME = 3
+
 pygame.font.init()
 FONT = pygame.font.Font(None, 36)

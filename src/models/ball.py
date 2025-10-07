@@ -1,6 +1,8 @@
 import pygame
 from pygame.math import Vector2
 
+import constants
+
 
 class Ball:
     def __init__(self, position: tuple, radius: int, color: tuple):
@@ -39,8 +41,8 @@ class Ball:
             self.velocity.scale_to_length(25)
 
     def check_bounds(self, screen_width, screen_height):
-        goal_top = (screen_height - 200) // 2  # or constants.GOAL_HEIGHT
-        goal_bottom = (screen_height + 200) // 2
+        goal_top = (screen_height - constants.GOAL_HEIGHT) // 2
+        goal_bottom = (screen_height + constants.GOAL_HEIGHT) // 2
 
         bounced = False
 

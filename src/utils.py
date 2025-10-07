@@ -93,10 +93,9 @@ def draw_scores(screen, real_madrid, kairat):
     )
 
 
-def draw_timer(screen, start_ticks):
-    elapsed_time = (pygame.time.get_ticks() - start_ticks) // 1000
-    minutes = elapsed_time // 60
-    seconds = elapsed_time % 60
+def draw_timer(screen, elapsed_seconds):
+    minutes = int(elapsed_seconds) // 60
+    seconds = int(elapsed_seconds) % 60
     time_text = constants.FONT.render(
         f"{minutes:02}:{seconds:02}", True, constants.WHITE
     )
