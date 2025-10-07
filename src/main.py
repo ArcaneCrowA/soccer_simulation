@@ -1,4 +1,5 @@
 import argparse
+import csv
 import os
 import sys
 import time
@@ -13,6 +14,31 @@ from models.team import Team
 from utils import draw_field, draw_scores, draw_timer
 
 # --- Helper Functions for RL ---
+
+
+def get_last_episode(filename="scores.csv"):
+    """Return the last recorded episode number from file (or 0 if none)."""
+    if not os.path.exists(filename):
+        return 0
+    try:
+        with open(filename, "r") as f:
+            lines = f.readlines()
+            if len(lines) <= 1:  # only header
+                return 0
+            last_line = lines[-1].strip().split(",")
+            return int(last_line[0])
+    except Exception:
+        return 0
+
+
+def append_score(episode, real_madrid, kairat, filename="scores.csv"):
+    """Append one episode's score to file."""
+    file_exists = os.path.exists(filename)
+    with open(filename, "a", newline="") as f:
+        writer = csv.writer(f)
+        if not file_exists or os.stat(filename).st_size == 0:
+            writer.writerow(["Episode", "Real Madrid", "Kairat"])
+        writer.writerow([episode, real_madrid.score, kairat.score])
 
 
 def get_player_state(player, ball, team, opponent_team):
@@ -264,6 +290,10 @@ def run_training(num_episodes, speed_multiplier=10):
                 f"{kairat.name} {kairat.score}"
             )
 
+        last_episode = get_last_episode()
+        episode_num = last_episode + episode + 1  # continue numbering
+        append_score(episode_num, real_madrid, kairat)
+
     # --- Save Models ---
     print("Training complete. Saving models...")
     for player in all_players:
@@ -466,7 +496,7 @@ def run_simulation(load_models=False):
             goal_scored_team_name = "real_madrid"
 
         if goal_scored_team_name:
-            print(f"⚽ Goal for {goal_scored_team_name}!")
+            print(f"Goal for {goal_scored_team_name}!")
             ball.position = Vector2(
                 constants.SCREEN_WIDTH // 2, constants.SCREEN_HEIGHT // 2
             )
