@@ -76,9 +76,17 @@ def calculate_reward(
     return reward
 
 
-def run_training(num_episodes):
-    """Runs the simulation in headless mode for training."""
-    print(f"Starting training for {num_episodes} episodes...")
+def run_training(num_episodes, speed_multiplier=10):
+    """
+    Runs the simulation in headless mode for training.
+
+    Args:
+        num_episodes: Number of training episodes
+        speed_multiplier: How much faster to run the simulation (1 = normal speed)
+    """
+    print(
+        f"Starting training for {num_episodes} episodes (speed: {speed_multiplier}x)..."
+    )
 
     # Initialize game objects
     real_madrid = Team("Real Madrid", constants.RED, 0.8, 0.7)
@@ -97,7 +105,7 @@ def run_training(num_episodes):
                 except Exception as e:
                     print(f"Could not load model for {player.name}: {e}")
 
-    for i in range(num_episodes):
+    for episode in range(num_episodes):
         # --- Episode Setup ---
         ball = Ball(
             (constants.SCREEN_WIDTH // 2, constants.SCREEN_HEIGHT // 2),
@@ -112,120 +120,149 @@ def run_training(num_episodes):
         kairat.score = 0
 
         player_memory = {}
-        game_start_time = time.time()
+        game_ticks = 0
+        max_ticks = int(
+            constants.ROUND_DURATION * constants.MAX_ROUNDS * constants.FPS
+        )
 
         # --- Fast, Headless Game Loop for one episode ---
-        while (
-            time.time() - game_start_time
-            < constants.ROUND_DURATION * constants.MAX_ROUNDS
-        ):
-            goal_scored_team_name = None
+        while game_ticks < max_ticks:
+            # Process multiple ticks in a batch for speed
+            for _ in range(speed_multiplier):
+                if game_ticks >= max_ticks:
+                    break
 
-            for player in all_players:
-                team = (
-                    real_madrid
-                    if player in real_madrid.team_members
-                    else kairat
-                )
-                opponent_team = kairat if team is real_madrid else real_madrid
+                goal_scored_team_name = None
 
-                current_state = get_player_state(
-                    player, ball, team, opponent_team
-                )
-
-                if player in player_memory:
-                    prev_state, prev_action = player_memory[player]
-                    reward = calculate_reward(
-                        player,
-                        ball,
-                        team.team_members,
-                        goal_scored_team_name,
-                        team.name,
+                # Player decision and action execution
+                for player in all_players:
+                    team = (
+                        real_madrid
+                        if player in real_madrid.team_members
+                        else kairat
                     )
-                    done = goal_scored_team_name is not None
+                    opponent_team = (
+                        kairat if team is real_madrid else real_madrid
+                    )
 
-                    if hasattr(player, "remember"):
-                        player.remember(
-                            prev_state, prev_action, reward, current_state, done
+                    current_state = get_player_state(
+                        player, ball, team, opponent_team
+                    )
+
+                    if player in player_memory:
+                        prev_state, prev_action = player_memory[player]
+                        reward = calculate_reward(
+                            player,
+                            ball,
+                            team.team_members,
+                            goal_scored_team_name,
+                            team.name,
                         )
-                    if hasattr(player, "replay"):
-                        player.replay()
+                        done = goal_scored_team_name is not None
 
-                action = player.choose_action(current_state)
-                player_memory[player] = (current_state, action)
+                        if hasattr(player, "remember"):
+                            player.remember(
+                                prev_state,
+                                prev_action,
+                                reward,
+                                current_state,
+                                done,
+                            )
+                        if hasattr(player, "replay"):
+                            player.replay()
 
-                if isinstance(player, Goalkeeper):
-                    player.update(
-                        action,
-                        ball,
-                        constants.SCREEN_WIDTH,
-                        constants.SCREEN_HEIGHT,
-                        team.team_members,
+                    action = player.choose_action(current_state)
+                    player_memory[player] = (current_state, action)
+
+                    if isinstance(player, Goalkeeper):
+                        player.update(
+                            action,
+                            ball,
+                            constants.SCREEN_WIDTH,
+                            constants.SCREEN_HEIGHT,
+                            team.team_members,
+                        )
+                    elif isinstance(player, Defender):
+                        player.update(
+                            action,
+                            ball,
+                            constants.SCREEN_WIDTH,
+                            constants.SCREEN_HEIGHT,
+                            opponent_team.team_members,
+                        )
+                    else:
+                        player.update(
+                            action,
+                            ball,
+                            team.team_members,
+                            constants.SCREEN_WIDTH,
+                            constants.SCREEN_HEIGHT,
+                        )
+
+                # Player positioning and constraints
+                for player in all_players:
+                    team = (
+                        real_madrid
+                        if player in real_madrid.team_members
+                        else kairat
                     )
-                elif isinstance(player, Defender):
-                    player.update(
-                        action,
-                        ball,
-                        constants.SCREEN_WIDTH,
-                        constants.SCREEN_HEIGHT,
-                        opponent_team.team_members,
-                    )
-                else:
-                    player.update(
-                        action,
-                        ball,
-                        team.team_members,
-                        constants.SCREEN_WIDTH,
-                        constants.SCREEN_HEIGHT,
+                    if isinstance(player, Midfielder):
+                        player.separate_from_others(
+                            team.team_members,
+                            min_distance=120,
+                            push_strength=2.0,
+                        )
+                    else:
+                        player.separate_from_others(team.team_members)
+                    player.stay_in_zone(
+                        constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT
                     )
 
-            for player in all_players:
-                team = (
-                    real_madrid
-                    if player in real_madrid.team_members
-                    else kairat
-                )
-                if isinstance(player, Midfielder):
-                    player.separate_from_others(
-                        team.team_members, min_distance=120, push_strength=2.0
-                    )
-                else:
-                    player.separate_from_others(team.team_members)
-                player.stay_in_zone(
+                # Ball physics
+                ball.move()
+                ball.check_bounds(
                     constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT
                 )
 
-            ball.move()
-            ball.check_bounds(constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT)
+                # Goal detection
+                goal_top = (
+                    constants.SCREEN_HEIGHT - constants.GOAL_HEIGHT
+                ) // 2
+                goal_bottom = (
+                    constants.SCREEN_HEIGHT + constants.GOAL_HEIGHT
+                ) // 2
+                if (
+                    ball.position.x - ball.radius <= 0
+                    and goal_top <= ball.position.y <= goal_bottom
+                ):
+                    kairat.score += 1
+                    goal_scored_team_name = "kairat"
+                elif (
+                    ball.position.x + ball.radius >= constants.SCREEN_WIDTH
+                    and goal_top <= ball.position.y <= goal_bottom
+                ):
+                    real_madrid.score += 1
+                    goal_scored_team_name = "real_madrid"
 
-            goal_top = (constants.SCREEN_HEIGHT - constants.GOAL_HEIGHT) // 2
-            goal_bottom = (constants.SCREEN_HEIGHT + constants.GOAL_HEIGHT) // 2
-            if (
-                ball.position.x - ball.radius <= 0
-                and goal_top <= ball.position.y <= goal_bottom
-            ):
-                kairat.score += 1
-                goal_scored_team_name = "kairat"
-            elif (
-                ball.position.x + ball.radius >= constants.SCREEN_WIDTH
-                and goal_top <= ball.position.y <= goal_bottom
-            ):
-                real_madrid.score += 1
-                goal_scored_team_name = "real_madrid"
+                # Reset after goal
+                if goal_scored_team_name:
+                    ball.position = Vector2(
+                        constants.SCREEN_WIDTH // 2,
+                        constants.SCREEN_HEIGHT // 2,
+                    )
+                    ball.velocity = Vector2(0, 0)
+                    for p in all_players:
+                        p.position = p.start_position.copy()
+                        p.velocity = Vector2(0, 0)
+                    player_memory.clear()
 
-            if goal_scored_team_name:
-                ball.position = Vector2(
-                    constants.SCREEN_WIDTH // 2, constants.SCREEN_HEIGHT // 2
-                )
-                ball.velocity = Vector2(0, 0)
-                for p in all_players:
-                    p.position = p.start_position.copy()
-                    p.velocity = Vector2(0, 0)
-                player_memory.clear()
+                game_ticks += 1
 
-        if (i + 1) % 10 == 0:
+        if (episode + 1) % 10 == 0:
             print(
-                f"Episode {i + 1}/{num_episodes} finished. Score: {real_madrid.name} {real_madrid.score} - {kairat.name} {kairat.score}"
+                f"Episode {episode + 1}/{num_episodes} finished. "
+                f"Score: {real_madrid.name} {real_madrid.score} - "
+                f"{kairat.name} {kairat.score}"
             )
 
     # --- Save Models ---
@@ -484,6 +521,12 @@ if __name__ == "__main__":
         help="Train the model for N episodes in headless mode.",
     )
     parser.add_argument(
+        "--speed",
+        type=int,
+        default=10,
+        help="Training speed multiplier (default: 10). Processes multiple ticks per iteration.",
+    )
+    parser.add_argument(
         "--load",
         action="store_true",
         help="Load pre-trained models for simulation.",
@@ -493,6 +536,6 @@ if __name__ == "__main__":
     if args.train:
         # In training mode, we don't need the full pygame video setup
         os.environ["SDL_VIDEODRIVER"] = "dummy"
-        run_training(args.train)
+        run_training(args.train, speed_multiplier=args.speed)
     else:
         run_simulation(load_models=args.load)
