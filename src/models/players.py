@@ -150,6 +150,9 @@ class Goalkeeper(Player):
         self.epsilon_decay = 0.995
         self.batch_size = 32
 
+    def save_model(self, path):
+        torch.save(self.dqn.state_dict(), path)
+
     def get_state(self, ball, screen_width, screen_height, teammates):
         state = [
             self.position.x / screen_width,
@@ -225,6 +228,9 @@ class Defender(Player):
         self.epsilon_min = 0.01
         self.epsilon_decay = 0.995
         self.batch_size = 32
+
+    def save_model(self, path):
+        torch.save(self.dqn.state_dict(), path)
 
     def get_state(self, ball, screen_width, screen_height, opponents):
         def_x = (

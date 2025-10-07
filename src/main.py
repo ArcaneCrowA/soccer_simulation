@@ -50,7 +50,7 @@ def calculate_reward(
         5 < player.position.x < constants.SCREEN_WIDTH - 5
         and 5 < player.position.y < constants.SCREEN_HEIGHT - 5
     ):
-        reward -= 1
+        reward -= 0.09
 
     # Reward for distance from other midfielders
     if isinstance(player, Midfielder):
@@ -67,9 +67,9 @@ def calculate_reward(
     if goal_scored_team_name:
         reward += 5 if goal_scored_team_name == team_name.lower() else -5
     elif player.can_reach_ball(ball):
-        reward += 0.2
+        reward += 0.3
     elif player.distance_to(ball.position) < 150:
-        reward += 0.1
+        reward += 0.2
     else:
         reward -= 0.02
 
