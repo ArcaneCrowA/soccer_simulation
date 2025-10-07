@@ -38,6 +38,47 @@ class Player:
         self.team_name = team_name
         self.last_action = None
 
+    def load_model(self, path, for_training=False):
+        self.dqn.load_state_dict(torch.load(path))
+        if not for_training:
+            self.epsilon = 0.05  # Set epsilon low for inference/simulation
+        print(f"Model loaded for {self.name}")
+
+    def save_model(self, path):
+        torch.save(self.dqn.state_dict(), path)
+
+    def remember(self, state, action, reward, next_state, done):
+        """Store experience in replay memory."""
+        self.memory.append((state, action, reward, next_state, done))
+
+    def replay(self):
+        """Train the DQN using experience replay."""
+        if len(self.memory) < self.batch_size:
+            return
+
+        batch = random.sample(self.memory, self.batch_size)
+        states, actions, rewards, next_states, dones = zip(*batch)
+
+        states = torch.stack(states)
+        next_states = torch.stack(next_states)
+        actions = torch.tensor(actions)
+        rewards = torch.tensor(rewards)
+        dones = torch.tensor(dones, dtype=torch.float32)
+
+        # Compute Q values
+        q_values = self.dqn(states).gather(1, actions.unsqueeze(1)).squeeze(1)
+        next_q_values = self.dqn(next_states).max(1)[0]
+        targets = rewards + self.gamma * next_q_values * (1 - dones)
+
+        # Update network
+        loss = nn.MSELoss()(q_values, targets)
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+
+        # Decay epsilon
+        self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
+
     def choose_action(self, state):
         action = self.choose_action(state)
         self.last_action = action
@@ -150,40 +191,6 @@ class Goalkeeper(Player):
         self.epsilon_decay = 0.995
         self.batch_size = 32
 
-    def save_model(self, path):
-        torch.save(self.dqn.state_dict(), path)
-
-    def remember(self, state, action, reward, next_state, done):
-        """Store experience in replay memory."""
-        self.memory.append((state, action, reward, next_state, done))
-
-    def replay(self):
-        """Train the DQN using experience replay."""
-        if len(self.memory) < self.batch_size:
-            return
-
-        batch = random.sample(self.memory, self.batch_size)
-        states, actions, rewards, next_states, dones = zip(*batch)
-
-        states = torch.stack(states)
-        next_states = torch.stack(next_states)
-        actions = torch.tensor(actions)
-        rewards = torch.tensor(rewards)
-        dones = torch.tensor(dones, dtype=torch.float32)
-
-        # Compute Q values
-        q_values = self.dqn(states).gather(1, actions.unsqueeze(1)).squeeze(1)
-        next_q_values = self.dqn(next_states).max(1)[0]
-        targets = rewards + self.gamma * next_q_values * (1 - dones)
-
-        # Update network
-        loss = nn.MSELoss()(q_values, targets)
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
-
-        # Decay epsilon
-
     def get_state(self, ball, screen_width, screen_height, teammates):
         state = [
             self.position.x / screen_width,
@@ -207,12 +214,6 @@ class Goalkeeper(Player):
             return random.randint(0, self.action_size - 1)
         with torch.no_grad():
             return self.dqn(state.unsqueeze(0)).argmax().item()
-
-    def load_model(self, path, for_training=False):
-        self.dqn.load_state_dict(torch.load(path))
-        if not for_training:
-            self.epsilon = 0.05  # Set epsilon low for inference/simulation
-        print(f"Model loaded for {self.name}")
 
     def update(self, action, ball, screen_width, screen_height, teammates):
         penalty_area_width = 150
@@ -265,48 +266,6 @@ class Defender(Player):
         self.epsilon_min = 0.01
         self.epsilon_decay = 0.995
         self.batch_size = 32
-
-    def save_model(self, path):
-        torch.save(self.dqn.state_dict(), path)
-
-    def remember(self, state, action, reward, next_state, done):
-        """Store experience in replay memory."""
-        self.memory.append((state, action, reward, next_state, done))
-
-    def replay(self):
-        """Train the DQN using experience replay."""
-        if len(self.memory) < self.batch_size:
-            return
-
-        batch = random.sample(self.memory, self.batch_size)
-        states, actions, rewards, next_states, dones = zip(*batch)
-
-        states = torch.stack(states)
-        next_states = torch.stack(next_states)
-        actions = torch.tensor(actions)
-        rewards = torch.tensor(rewards)
-        dones = torch.tensor(dones, dtype=torch.float32)
-
-        # Compute Q values
-        q_values = self.dqn(states).gather(1, actions.unsqueeze(1)).squeeze(1)
-        next_q_values = self.dqn(next_states).max(1)[0]
-        targets = rewards + self.gamma * next_q_values * (1 - dones)
-
-        # Update network
-        loss = nn.MSELoss()(q_values, targets)
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
-
-        # Decay epsilon
-        self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
-
-    def load_model(self, path, for_training=False):
-        """Load a saved model."""
-        self.dqn.load_state_dict(torch.load(path))
-        if not for_training:
-            self.epsilon = 0.05  # Set epsilon low for inference/simulation
-        print(f"Model loaded for {self.name}")
 
     def get_state(self, ball, screen_width, screen_height, opponents):
         def_x = (
@@ -413,41 +372,9 @@ class Midfielder(Player):
         with torch.no_grad():
             return self.dqn(state.unsqueeze(0)).argmax().item()
 
-    def remember(self, state, action, reward, next_state, done):
-        self.memory.append((state, action, reward, next_state, done))
-
-    def replay(self):
-        if len(self.memory) < self.batch_size:
-            return
-        batch = random.sample(self.memory, self.batch_size)
-        states, actions, rewards, next_states, dones = zip(*batch)
-        states = torch.stack(states)
-        next_states = torch.stack(next_states)
-        actions = torch.tensor(actions)
-        rewards = torch.tensor(rewards)
-        dones = torch.tensor(dones, dtype=torch.float32)
-
-        q_values = self.dqn(states).gather(1, actions.unsqueeze(1)).squeeze(1)
-        next_q_values = self.dqn(next_states).max(1)[0]
-        targets = rewards + self.gamma * next_q_values * (1 - dones)
-        loss = nn.MSELoss()(q_values, targets)
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
-        self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
-
-    def save_model(self, path):
-        torch.save(self.dqn.state_dict(), path)
-
-    def load_model(self, path, for_training=False):
-        self.dqn.load_state_dict(torch.load(path))
-        if not for_training:
-            self.epsilon = 0.05  # Set epsilon low for inference/simulation
-        print(f"Model loaded for {self.name}")
-
-    def update(self, action, ball, teammates, screen_width, screen_height):
-        speed = 3.0
-
+    def update(
+        self, action, ball, teammates, screen_width, screen_height, speed
+    ):
         # --- Movement Actions ---
         if action == 0:  # Move North
             self.position.y -= speed
@@ -526,41 +453,9 @@ class Forwards(Player):
         with torch.no_grad():
             return self.dqn(state.unsqueeze(0)).argmax().item()
 
-    def remember(self, state, action, reward, next_state, done):
-        self.memory.append((state, action, reward, next_state, done))
-
-    def replay(self):
-        if len(self.memory) < self.batch_size:
-            return
-        batch = random.sample(self.memory, self.batch_size)
-        states, actions, rewards, next_states, dones = zip(*batch)
-        states = torch.stack(states)
-        next_states = torch.stack(next_states)
-        actions = torch.tensor(actions)
-        rewards = torch.tensor(rewards)
-        dones = torch.tensor(dones, dtype=torch.float32)
-
-        q_values = self.dqn(states).gather(1, actions.unsqueeze(1)).squeeze(1)
-        next_q_values = self.dqn(next_states).max(1)[0]
-        targets = rewards + self.gamma * next_q_values * (1 - dones)
-        loss = nn.MSELoss()(q_values, targets)
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
-        self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
-
-    def save_model(self, path):
-        torch.save(self.dqn.state_dict(), path)
-
-    def load_model(self, path, for_training=False):
-        self.dqn.load_state_dict(torch.load(path))
-        if not for_training:
-            self.epsilon = 0.05  # Set epsilon low for inference/simulation
-        print(f"Model loaded for {self.name}")
-
-    def update(self, action, ball, teammates, screen_width, screen_height):
-        speed = 3.0
-
+    def update(
+        self, action, ball, teammates, screen_width, screen_height, speed
+    ):
         # --- Movement Actions ---
         if action == 0:  # Move North
             self.position.y -= speed

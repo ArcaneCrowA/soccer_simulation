@@ -1,6 +1,6 @@
 from pygame import Vector2
 
-from .players import Defender, Forwards, Goalkeeper, Midfielder
+from .players import Defender, Forwards, Goalkeeper, Midfielder, Player
 
 
 class Team:
@@ -10,7 +10,7 @@ class Team:
         self.color = color
         self.accuracy = accuracy
         self.saves = saves
-        self.team_members = []
+        self.team_members: list[Player] = []
 
     def reset_positions(self):
         for player in self.team_members:

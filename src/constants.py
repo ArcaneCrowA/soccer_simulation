@@ -29,3 +29,4 @@ COUNTDOWN_TIME = 3
 
 pygame.font.init()
 FONT = pygame.font.Font(None, 36)
+SPEED = 3

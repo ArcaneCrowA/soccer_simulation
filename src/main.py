@@ -97,13 +97,12 @@ def run_training(num_episodes, speed_multiplier=10):
 
     # Load existing models if they exist
     for player in all_players:
-        if hasattr(player, "load_model"):
-            model_path = f"{player.name.replace(' ', '_')}_dqn.pth"
-            if os.path.exists(model_path):
-                try:
-                    player.load_model(model_path, for_training=True)
-                except Exception as e:
-                    print(f"Could not load model for {player.name}: {e}")
+        model_path = f"models/{player.name.replace(' ', '_')}_dqn.pth"
+        if os.path.exists(model_path):
+            try:
+                player.load_model(model_path, for_training=True)
+            except Exception as e:
+                print(f"Could not load model for {player.name}: {e}")
 
     for episode in range(num_episodes):
         # --- Episode Setup ---
@@ -160,14 +159,13 @@ def run_training(num_episodes, speed_multiplier=10):
                         )
                         done = goal_scored_team_name is not None
 
-                        if hasattr(player, "remember"):
-                            player.remember(
-                                prev_state,
-                                prev_action,
-                                reward,
-                                current_state,
-                                done,
-                            )
+                        player.remember(
+                            prev_state,
+                            prev_action,
+                            reward,
+                            current_state,
+                            done,
+                        )
                         if hasattr(player, "replay"):
                             player.replay()
 
@@ -197,6 +195,7 @@ def run_training(num_episodes, speed_multiplier=10):
                             team.team_members,
                             constants.SCREEN_WIDTH,
                             constants.SCREEN_HEIGHT,
+                            constants.SPEED,
                         )
 
                 # Player positioning and constraints
@@ -268,10 +267,9 @@ def run_training(num_episodes, speed_multiplier=10):
     # --- Save Models ---
     print("Training complete. Saving models...")
     for player in all_players:
-        if hasattr(player, "save_model"):
-            model_path = f"{player.name.replace(' ', '_')}_dqn.pth"
-            player.save_model(model_path)
-            print(f"Saved model for {player.name} to {model_path}")
+        model_path = f"models/{player.name.replace(' ', '_')}_dqn.pth"
+        player.save_model(model_path)
+        print(f"Saved model for {player.name} to {model_path}")
 
 
 def run_simulation(load_models=False):
@@ -298,17 +296,16 @@ def run_simulation(load_models=False):
     if load_models:
         print("Loading pre-trained models for simulation...")
         for player in all_players:
-            if hasattr(player, "load_model"):
-                model_path = f"{player.name.replace(' ', '_')}_dqn.pth"
-                if os.path.exists(model_path):
-                    try:
-                        player.load_model(model_path, for_training=False)
-                    except Exception as e:
-                        print(f"Could not load model for {player.name}: {e}")
-                else:
-                    print(
-                        f"Warning: Model file not found for {player.name}. Using untrained model."
-                    )
+            model_path = f"models/{player.name.replace(' ', '_')}_dqn.pth"
+            if os.path.exists(model_path):
+                try:
+                    player.load_model(model_path, for_training=False)
+                except Exception as e:
+                    print(f"Could not load model for {player.name}: {e}")
+            else:
+                print(
+                    f"Warning: Model file not found for {player.name}. Using untrained model."
+                )
 
     # Game state variables
     current_round = 1
@@ -407,10 +404,9 @@ def run_simulation(load_models=False):
                     round_elapsed_time >= constants.ROUND_DURATION
                     or goal_scored_team_name is not None
                 )
-                if hasattr(player, "remember"):
-                    player.remember(
-                        prev_state, prev_action, reward, current_state, done
-                    )
+                player.remember(
+                    prev_state, prev_action, reward, current_state, done
+                )
                 if hasattr(player, "replay"):
                     player.replay()
             action = player.choose_action(current_state)
@@ -438,6 +434,7 @@ def run_simulation(load_models=False):
                     team.team_members,
                     constants.SCREEN_WIDTH,
                     constants.SCREEN_HEIGHT,
+                    constants.SPEED,
                 )
 
         for player in all_players:
