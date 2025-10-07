@@ -43,16 +43,79 @@ class Player:
         )
 
     def kick_ball(self, ball, target_position, kick_power):
-        direction = (target_position - ball.position).normalize()
+        direction = target_position - ball.position
+
+        # Prevent zero-length vector
+        if direction.length() == 0:
+            return  # Skip kick if ball is exactly under player
+
+        direction = direction.normalize()
+
         angle_dev = (1 - self.accuracy) * 90
-        deviation = random.uniform(
-            -math.radians(angle_dev), math.radians(angle_dev)
-        )
+        deviation = random.uniform(-angle_dev, angle_dev)
         actual_direction = direction.rotate(math.degrees(deviation))
         ball.velocity = actual_direction * kick_power
 
+    def separate_from_others(
+        self, teammates, min_distance=20, push_strength=0.5
+    ):
+        """Push players apart if they are too close to each other."""
+        for mate in teammates:
+            if mate is self:
+                continue
+            diff = self.position - mate.position
+            dist = diff.length()
+            if dist < min_distance and dist > 0:
+                # Compute how much to push
+                overlap = (min_distance - dist) / 2
+                direction = diff.normalize()
+                self.position += direction * overlap * push_strength
+                mate.position -= direction * overlap * push_strength
+
+    def stay_in_zone(self, screen_width, screen_height):
+        """Keep player within their tactical zone depending on role."""
+        role = self.__class__.__name__
+        margin = self.radius
+        third = screen_width / 3
+
+        if self.team_name == "Real Madrid":
+            if role == "Goalkeeper":
+                min_x, max_x = margin, third * 0.5
+            elif role == "Defender":
+                min_x, max_x = margin, third
+            elif role == "Midfielder":
+                min_x, max_x = third * 0.5, third * 2
+            elif role == "Forwards":
+                min_x, max_x = third * 1.5, screen_width - third * 0.2
+        else:  # Kairat (right side)
+            if role == "Goalkeeper":
+                min_x, max_x = screen_width - third * 0.5, screen_width - margin
+            elif role == "Defender":
+                min_x, max_x = screen_width - third, screen_width - margin
+            elif role == "Midfielder":
+                min_x, max_x = third, screen_width - third * 0.5
+            elif role == "Forwards":
+                min_x, max_x = third * 0.2, screen_width - third * 1.5
+
+        # Clamp Y to field bounds
+        min_y, max_y = margin, screen_height - margin
+
+        if role != "Goalkeeper":
+            # Apply clamping
+            self.position.x = max(
+                margin, min(self.position.x, screen_width - margin)
+            )
+            self.position.y = max(min_y, min(self.position.y, max_y))
+        else:
+            self.position.x = max(min_x, min(self.position.x, max_x))
+            self.position.y = max(min_y, min(self.position.y, max_y))
+
 
 class Goalkeeper(Player):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.start_position = self.position.copy()
+
     def update(self, ball, screen_width, screen_height):
         penalty_area_width = 150
         if self.team_name == "Real Madrid":
@@ -74,6 +137,10 @@ class Goalkeeper(Player):
 
 
 class Defender(Player):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.start_position = self.position.copy()
+
     def update(self, ball, screen_width, screen_height):
         halfway = screen_width / 2
         def_x = (
@@ -98,6 +165,10 @@ class Defender(Player):
 
 
 class Midfielder(Player):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.start_position = self.position.copy()
+
     def update(self, ball, teammates, screen_width, screen_height):
         halfway = screen_width / 2
         target = Vector2(self.initial_position.x, ball.position.y)
@@ -133,6 +204,10 @@ class Midfielder(Player):
 
 
 class Forwards(Player):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.start_position = self.position.copy()
+
     def update(self, ball, teammates, screen_width, screen_height):
         halfway = screen_width / 2
         opponent_goal_x = screen_width if self.team_name == "Real Madrid" else 0

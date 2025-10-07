@@ -1,3 +1,5 @@
+from pygame import Vector2
+
 from .players import Defender, Forwards, Goalkeeper, Midfielder
 
 
@@ -9,6 +11,13 @@ class Team:
         self.accuracy = accuracy
         self.saves = saves
         self.team_members = []
+
+    def reset_positions(self):
+        for player in self.team_members:
+            player.position = Vector2(
+                player.start_position
+            )  # store this on init
+            player.velocity = Vector2(0, 0)
 
     def create_players(self, screen_width, screen_height):
         r = 10
