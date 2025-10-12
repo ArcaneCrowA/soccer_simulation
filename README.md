@@ -8,12 +8,12 @@ uv sync
 ## How to run
 
 ```
-uv run src/main.py --load
+uv run main.py --load
 ```
 
 ## How to train
 ```
-uv run src/main.py --train [n]
+uv run main.py --train [n]
 ```
 n is number of tries
 

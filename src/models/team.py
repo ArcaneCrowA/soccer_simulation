@@ -1,6 +1,12 @@
 from pygame import Vector2
 
-from .players import Defender, Forwards, Goalkeeper, Midfielder, Player
+from src.models.players import (
+    Defender,
+    Forwards,
+    Goalkeeper,
+    Midfielder,
+    Player,
+)
 
 
 class Team:
