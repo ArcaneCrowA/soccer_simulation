@@ -137,11 +137,11 @@ class Player:
                 self.position += direction * overlap * push_strength
                 mate.position -= direction * overlap * push_strength
 
-    def stay_in_zone(self, screen_width, screen_height):
+    def stay_in_zone(self, field_width, field_height):
         """Keep player within their tactical zone depending on role."""
         role = self.__class__.__name__
         margin = self.radius
-        third = screen_width / 3
+        third = field_width / 3
 
         if self.team_name == "Real Madrid":
             if role == "Goalkeeper":
@@ -151,24 +151,24 @@ class Player:
             elif role == "Midfielder":
                 min_x, max_x = third * 0.5, third * 2
             elif role == "Forwards":
-                min_x, max_x = third * 1.5, screen_width - third * 0.2
+                min_x, max_x = third * 1.5, field_width - third * 0.2
         else:  # Kairat (right side)
             if role == "Goalkeeper":
-                min_x, max_x = screen_width - third * 0.5, screen_width - margin
+                min_x, max_x = field_width - third * 0.5, field_width - margin
             elif role == "Defender":
-                min_x, max_x = screen_width - third, screen_width - margin
+                min_x, max_x = field_width - third, field_width - margin
             elif role == "Midfielder":
-                min_x, max_x = third, screen_width - third * 0.5
+                min_x, max_x = third, field_width - third * 0.5
             elif role == "Forwards":
-                min_x, max_x = third * 0.2, screen_width - third * 1.5
+                min_x, max_x = third * 0.2, field_width - third * 1.5
 
         # Clamp Y to field bounds
-        min_y, max_y = margin, screen_height - margin
+        min_y, max_y = margin, field_height - margin
 
         if role != "Goalkeeper":
             # Apply clamping
             self.position.x = max(
-                margin, min(self.position.x, screen_width - margin)
+                margin, min(self.position.x, field_width - margin)
             )
             self.position.y = max(min_y, min(self.position.y, max_y))
         else:
@@ -191,21 +191,21 @@ class Goalkeeper(Player):
         self.epsilon_decay = 0.995
         self.batch_size = 32
 
-    def get_state(self, ball, screen_width, screen_height, teammates):
+    def get_state(self, ball, field_width, field_height, teammates):
         state = [
-            self.position.x / screen_width,
-            self.position.y / screen_height,
-            ball.position.x / screen_width,
-            ball.position.y / screen_height,
+            self.position.x / field_width,
+            self.position.y / field_height,
+            ball.position.x / field_width,
+            ball.position.y / field_height,
             ball.velocity.x / 25,
             ball.velocity.y / 25,
             (
-                screen_width
+                field_height
                 if self.team_name == "Kairat"
                 else 0 - self.position.x
             )
-            / screen_width,
-            (screen_height / 2 - self.position.y) / screen_height,
+            / field_height,
+            (field_height / 2 - self.position.y) / field_height,
         ]
         return torch.tensor(state, dtype=torch.float32)
 
@@ -215,21 +215,21 @@ class Goalkeeper(Player):
         with torch.no_grad():
             return self.dqn(state.unsqueeze(0)).argmax().item()
 
-    def update(self, action, ball, screen_width, screen_height, teammates):
+    def update(self, action, ball, field_width, field_height, teammates):
         penalty_area_width = 150
         min_x = (
             self.radius
             if self.team_name == "Real Madrid"
-            else screen_width - penalty_area_width // 2
+            else field_width - penalty_area_width // 2
         )
         max_x = (
             penalty_area_width // 2
             if self.team_name == "Real Madrid"
-            else screen_width - self.radius
+            else field_width - self.radius
         )
         target_y = max(
-            (screen_height - 150) // 2,
-            min((screen_height + 150) // 2, ball.position.y),
+            (field_height - 150) // 2,
+            min((field_height + 150) // 2, ball.position.y),
         )
 
         if action == 0:  # Move to intercept
@@ -248,7 +248,7 @@ class Goalkeeper(Player):
             if best_mate:
                 self.kick_ball(ball, best_mate.position, kick_power=20)
             else:  # Fallback: kick forward to center
-                kick_target = Vector2(screen_width / 2, self.position.y)
+                kick_target = Vector2(field_width / 2, self.position.y)
                 self.kick_ball(ball, kick_target, kick_power=20)
 
 
@@ -267,28 +267,28 @@ class Defender(Player):
         self.epsilon_decay = 0.995
         self.batch_size = 32
 
-    def get_state(self, ball, screen_width, screen_height, opponents):
+    def get_state(self, ball, field_width, field_height, opponents):
         def_x = (
-            screen_width // 4
+            field_width // 4
             if self.team_name == "Real Madrid"
-            else screen_width - screen_width // 4
+            else field_width - field_width // 4
         )
         state = [
-            self.position.x / screen_width,
-            self.position.y / screen_height,
-            ball.position.x / screen_width,
-            ball.position.y / screen_height,
+            self.position.x / field_width,
+            self.position.y / field_height,
+            ball.position.x / field_width,
+            ball.position.y / field_height,
             ball.velocity.x / 25,
             ball.velocity.y / 25,
             min([self.distance_to(p.position) for p in opponents])
-            / screen_width,
+            / field_width,
             abs(
-                (screen_width if self.team_name == "Kairat" else 0)
+                (field_width if self.team_name == "Kairat" else 0)
                 - self.position.x
             )
-            / screen_width,
-            abs(self.position.y - ball.position.y) / screen_height,
-            abs(self.position.x - def_x) / screen_width,
+            / field_width,
+            abs(self.position.y - ball.position.y) / field_height,
+            abs(self.position.x - def_x) / field_width,
         ]
         return torch.tensor(state, dtype=torch.float32)
 
@@ -298,23 +298,23 @@ class Defender(Player):
         with torch.no_grad():
             return self.dqn(state.unsqueeze(0)).argmax().item()
 
-    def update(self, action, ball, screen_width, screen_height, opponents):
+    def update(self, action, ball, field_width, field_height, opponents):
         def_x = (
-            screen_width // 4
+            field_width // 4
             if self.team_name == "Real Madrid"
-            else screen_width - screen_width // 4
+            else field_width - field_width // 4
         )
         in_half = (
             self.team_name == "Real Madrid"
-            and ball.position.x < screen_width / 2
-        ) or (self.team_name == "Kairat" and ball.position.x > screen_width / 2)
+            and ball.position.x < field_width / 2
+        ) or (self.team_name == "Kairat" and ball.position.x > field_width / 2)
 
         if action == 0 and self.can_reach_ball(ball):  # Tackle
-            target_x = screen_width * (
+            target_x = field_width * (
                 0.6 if self.team_name == "Real Madrid" else 0.4
             )
             self.kick_ball(
-                ball, Vector2(target_x, random.uniform(0, screen_height)), 10
+                ball, Vector2(target_x, random.uniform(0, field_height)), 10
             )
         elif (
             action == 1 and in_half and self.distance_to(ball.position) < 200
@@ -343,25 +343,25 @@ class Midfielder(Player):
         self.epsilon_decay = 0.995
         self.batch_size = 32
 
-    def get_state(self, ball, teammates, screen_width, screen_height):
+    def get_state(self, ball, teammates, field_width, field_height):
         # Flatten state vector (example)
         state = [
-            self.position.x / screen_width,
-            self.position.y / screen_height,
-            ball.position.x / screen_width,
-            ball.position.y / screen_height,
+            self.position.x / field_width,
+            self.position.y / field_height,
+            ball.position.x / field_width,
+            ball.position.y / field_height,
             ball.velocity.x / 25,
             ball.velocity.y / 25,  # normalized
             # Add teammate dists, opponent dists (simplify to closest)
             min([self.distance_to(p.position) for p in teammates if p != self])
-            / screen_width,
+            / field_width,
             # Goal dist
             abs(
-                screen_width
+                field_width
                 if self.team_name == "Real Madrid"
                 else 0 - self.position.x
             )
-            / screen_width,
+            / field_width,
             1.0 if self.can_reach_ball(ball) else 0.0,
         ]
         return torch.tensor(state, dtype=torch.float32)
@@ -372,9 +372,7 @@ class Midfielder(Player):
         with torch.no_grad():
             return self.dqn(state.unsqueeze(0)).argmax().item()
 
-    def update(
-        self, action, ball, teammates, screen_width, screen_height, speed
-    ):
+    def update(self, action, ball, teammates, field_width, field_height, speed):
         # --- Movement Actions ---
         if action == 0:  # Move North
             self.position.y -= speed
@@ -401,8 +399,8 @@ class Midfielder(Player):
         elif action == 8:  # Kick
             if self.can_reach_ball(ball):
                 # Simple rule: shoot at goal
-                goal_x = screen_width if self.team_name == "Real Madrid" else 0
-                goal_center = Vector2(goal_x, screen_height / 2)
+                goal_x = field_width if self.team_name == "Real Madrid" else 0
+                goal_center = Vector2(goal_x, field_height / 2)
                 self.kick_ball(ball, goal_center, kick_power=20)
 
         # action == 9 is "Stay Still", so we do nothing.
@@ -425,24 +423,24 @@ class Forwards(Player):
         self.epsilon_decay = 0.995
         self.batch_size = 32
 
-    def get_state(self, ball, teammates, screen_width, screen_height):
+    def get_state(self, ball, teammates, field_width, field_height):
         # Flatten state vector (example)
         state = [
-            self.position.x / screen_width,
-            self.position.y / screen_height,
-            ball.position.x / screen_width,
-            ball.position.y / screen_height,
+            self.position.x / field_width,
+            self.position.y / field_height,
+            ball.position.x / field_width,
+            ball.position.y / field_height,
             ball.velocity.x / 25,
             ball.velocity.y / 25,  # normalized
             # Add teammate dists, opponent dists (simplify to closest)
             min([self.distance_to(p.position) for p in teammates if p != self])
-            / screen_width,
+            / field_width,
             abs(
-                screen_width
+                field_width
                 if self.team_name == "Real Madrid"
                 else 0 - self.position.x
             )
-            / screen_width,
+            / field_width,
             1.0 if self.can_reach_ball(ball) else 0.0,
         ]
         return torch.tensor(state, dtype=torch.float32)
@@ -453,9 +451,7 @@ class Forwards(Player):
         with torch.no_grad():
             return self.dqn(state.unsqueeze(0)).argmax().item()
 
-    def update(
-        self, action, ball, teammates, screen_width, screen_height, speed
-    ):
+    def update(self, action, ball, teammates, field_width, field_height, speed):
         # --- Movement Actions ---
         if action == 0:  # Move North
             self.position.y -= speed
@@ -482,8 +478,8 @@ class Forwards(Player):
         elif action == 8:  # Kick
             if self.can_reach_ball(ball):
                 # Simple rule: shoot at goal
-                goal_x = screen_width if self.team_name == "Real Madrid" else 0
-                goal_center = Vector2(goal_x, screen_height / 2)
+                goal_x = field_width if self.team_name == "Real Madrid" else 0
+                goal_center = Vector2(goal_x, field_height / 2)
                 self.kick_ball(ball, goal_center, kick_power=20)
 
         # action == 9 is "Stay Still", so we do nothing.

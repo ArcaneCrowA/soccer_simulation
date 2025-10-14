@@ -36,23 +36,23 @@ def get_player_state(player, ball, team, opponent_team):
     if isinstance(player, Goalkeeper):
         return player.get_state(
             ball,
-            constants.SCREEN_WIDTH,
-            constants.SCREEN_HEIGHT,
+            constants.FIELD_WIDTH,
+            constants.FIELD_HEIGHT,
             team.team_members,
         )
     elif isinstance(player, Defender):
         return player.get_state(
             ball,
-            constants.SCREEN_WIDTH,
-            constants.SCREEN_HEIGHT,
+            constants.FIELD_WIDTH,
+            constants.FIELD_HEIGHT,
             opponent_team.team_members,
         )
     else:  # Midfielder and Forwards
         return player.get_state(
             ball,
             team.team_members,
-            constants.SCREEN_WIDTH,
-            constants.SCREEN_HEIGHT,
+            constants.FIELD_WIDTH,
+            constants.FIELD_HEIGHT,
         )
 
 
@@ -63,8 +63,8 @@ def calculate_reward(
     reward = 0
     # Penalty for being out of bounds
     if not (
-        5 < player.position.x < constants.SCREEN_WIDTH - 5
-        and 5 < player.position.y < constants.SCREEN_HEIGHT - 5
+        5 < player.position.x < constants.FIELD_WIDTH - 5
+        and 5 < player.position.y < constants.FIELD_HEIGHT - 5
     ):
         reward -= 0.09
 

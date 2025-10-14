@@ -25,18 +25,18 @@ class Team:
             )  # store this on init
             player.velocity = Vector2(0, 0)
 
-    def create_players(self, screen_width, screen_height):
+    def create_players(self, field_width, field_height):
         r = 10
-        gk_y = screen_height // 2
-        y4 = [screen_height * (i + 1) // 5 for i in range(4)]
-        y2 = [screen_height * (i + 1) // 3 for i in range(2)]
+        gk_y = field_height // 2
+        y4 = [field_height * (i + 1) // 5 for i in range(4)]
+        y2 = [field_height * (i + 1) // 3 for i in range(2)]
         if self.name == "Real Madrid":
             self.team_members.append(
                 Goalkeeper(
                     f"{self.name} GK",
                     self.accuracy,
                     self.saves,
-                    (screen_width // 10, gk_y),
+                    (field_width // 10, gk_y),
                     r,
                     self.color,
                     self.name,
@@ -48,7 +48,7 @@ class Team:
                         f"{self.name} D{i + 1}",
                         self.accuracy,
                         self.saves,
-                        (screen_width // 5, y),
+                        (field_width // 5, y),
                         r,
                         self.color,
                         self.name,
@@ -59,7 +59,7 @@ class Team:
                         f"{self.name} M{i + 1}",
                         self.accuracy,
                         self.saves,
-                        (screen_width // 2 - screen_width // 8, y),
+                        (field_width // 2 - field_width // 8, y),
                         r,
                         self.color,
                         self.name,
@@ -71,7 +71,7 @@ class Team:
                         f"{self.name} F{i + 1}",
                         self.accuracy,
                         self.saves,
-                        (screen_width // 2 - screen_width // 6, y),
+                        (field_width // 2 - field_width // 6, y),
                         r,
                         self.color,
                         self.name,
@@ -83,7 +83,7 @@ class Team:
                     f"{self.name} GK",
                     self.accuracy,
                     self.saves,
-                    (screen_width - screen_width // 10, gk_y),
+                    (field_width - field_width // 10, gk_y),
                     r,
                     self.color,
                     self.name,
@@ -95,7 +95,7 @@ class Team:
                         f"{self.name} D{i + 1}",
                         self.accuracy,
                         self.saves,
-                        (screen_width - screen_width // 5, y),
+                        (field_width - field_width // 5, y),
                         r,
                         self.color,
                         self.name,
@@ -106,7 +106,7 @@ class Team:
                         f"{self.name} M{i + 1}",
                         self.accuracy,
                         self.saves,
-                        (screen_width // 2 + screen_width // 8, y),
+                        (field_width // 2 + field_width // 8, y),
                         r,
                         self.color,
                         self.name,
@@ -118,7 +118,7 @@ class Team:
                         f"{self.name} F{i + 1}",
                         self.accuracy,
                         self.saves,
-                        (screen_width // 2 + screen_width // 6, y),
+                        (field_width // 2 + field_width // 6, y),
                         r,
                         self.color,
                         self.name,

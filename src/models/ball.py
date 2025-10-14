@@ -40,9 +40,9 @@ class Ball:
         if self.velocity.length() > 25:
             self.velocity.scale_to_length(25)
 
-    def check_bounds(self, screen_width, screen_height):
-        goal_top = (screen_height - constants.GOAL_HEIGHT) // 2
-        goal_bottom = (screen_height + constants.GOAL_HEIGHT) // 2
+    def check_bounds(self, field_width, field_height):
+        goal_top = (field_height - constants.GOAL_HEIGHT) // 2
+        goal_bottom = (field_height + constants.GOAL_HEIGHT) // 2
 
         bounced = False
 
@@ -52,9 +52,9 @@ class Ball:
                 self.position.x = self.radius
                 self.velocity.x *= -0.8
                 bounced = True
-        elif self.position.x + self.radius > screen_width:
+        elif self.position.x + self.radius > field_width:
             if not goal_top < self.position.y < goal_bottom:
-                self.position.x = screen_width - self.radius
+                self.position.x = field_width - self.radius
                 self.velocity.x *= -0.8
                 bounced = True
 
@@ -63,8 +63,8 @@ class Ball:
             self.position.y = self.radius
             self.velocity.y *= -0.8
             bounced = True
-        elif self.position.y + self.radius > screen_height:
-            self.position.y = screen_height - self.radius
+        elif self.position.y + self.radius > field_height:
+            self.position.y = field_height - self.radius
             self.velocity.y *= -0.8
             bounced = True
 

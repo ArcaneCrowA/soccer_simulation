@@ -25,8 +25,8 @@ def run_training(num_episodes, speed_multiplier=10):
     # Initialize game objects
     real_madrid = Team("Real Madrid", constants.RED, 0.8, 0.7)
     kairat = Team("Kairat", constants.YELLOW, 0.6, 0.5)
-    real_madrid.create_players(constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT)
-    kairat.create_players(constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT)
+    real_madrid.create_players(constants.FIELD_WIDTH, constants.FIELD_HEIGHT)
+    kairat.create_players(constants.FIELD_WIDTH, constants.FIELD_HEIGHT)
     all_players = real_madrid.team_members + kairat.team_members
 
     # Load existing models if they exist
@@ -41,7 +41,7 @@ def run_training(num_episodes, speed_multiplier=10):
     for episode in range(num_episodes):
         # --- Episode Setup ---
         ball = Ball(
-            (constants.SCREEN_WIDTH // 2, constants.SCREEN_HEIGHT // 2),
+            (constants.FIELD_WIDTH // 2, constants.FIELD_HEIGHT // 2),
             7,
             constants.BALL_COLOR,
         )
@@ -110,16 +110,16 @@ def run_training(num_episodes, speed_multiplier=10):
                         player.update(
                             action,
                             ball,
-                            constants.SCREEN_WIDTH,
-                            constants.SCREEN_HEIGHT,
+                            constants.FIELD_WIDTH,
+                            constants.FIELD_HEIGHT,
                             team.team_members,
                         )
                     elif isinstance(player, Defender):
                         player.update(
                             action,
                             ball,
-                            constants.SCREEN_WIDTH,
-                            constants.SCREEN_HEIGHT,
+                            constants.FIELD_WIDTH,
+                            constants.FIELD_HEIGHT,
                             opponent_team.team_members,
                         )
                     else:
@@ -127,8 +127,8 @@ def run_training(num_episodes, speed_multiplier=10):
                             action,
                             ball,
                             team.team_members,
-                            constants.SCREEN_WIDTH,
-                            constants.SCREEN_HEIGHT,
+                            constants.FIELD_WIDTH,
+                            constants.FIELD_HEIGHT,
                             constants.SPEED,
                         )
 
@@ -148,21 +148,17 @@ def run_training(num_episodes, speed_multiplier=10):
                     else:
                         player.separate_from_others(team.team_members)
                     player.stay_in_zone(
-                        constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT
+                        constants.FIELD_WIDTH, constants.FIELD_HEIGHT
                     )
 
                 # Ball physics
                 ball.move()
-                ball.check_bounds(
-                    constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT
-                )
+                ball.check_bounds(constants.FIELD_WIDTH, constants.FIELD_HEIGHT)
 
                 # Goal detection
-                goal_top = (
-                    constants.SCREEN_HEIGHT - constants.GOAL_HEIGHT
-                ) // 2
+                goal_top = (constants.FIELD_HEIGHT - constants.GOAL_HEIGHT) // 2
                 goal_bottom = (
-                    constants.SCREEN_HEIGHT + constants.GOAL_HEIGHT
+                    constants.FIELD_HEIGHT + constants.GOAL_HEIGHT
                 ) // 2
                 if (
                     ball.position.x - ball.radius <= 0
@@ -171,7 +167,7 @@ def run_training(num_episodes, speed_multiplier=10):
                     kairat.score += 1
                     goal_scored_team_name = "kairat"
                 elif (
-                    ball.position.x + ball.radius >= constants.SCREEN_WIDTH
+                    ball.position.x + ball.radius >= constants.FIELD_WIDTH
                     and goal_top <= ball.position.y <= goal_bottom
                 ):
                     real_madrid.score += 1
@@ -180,8 +176,8 @@ def run_training(num_episodes, speed_multiplier=10):
                 # Reset after goal
                 if goal_scored_team_name:
                     ball.position = Vector2(
-                        constants.SCREEN_WIDTH // 2,
-                        constants.SCREEN_HEIGHT // 2,
+                        constants.FIELD_WIDTH // 2,
+                        constants.FIELD_HEIGHT // 2,
                     )
                     ball.velocity = Vector2(0, 0)
                     for p in all_players:

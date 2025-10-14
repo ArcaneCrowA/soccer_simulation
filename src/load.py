@@ -19,18 +19,18 @@ def run_simulation(load_models=False):
     pygame.init()
     pygame.display.set_caption("Soccer Simulation")
     SCREEN = pygame.display.set_mode(
-        (constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT)
+        (constants.FIELD_WIDTH, constants.FIELD_HEIGHT)
     )
     CLOCK = pygame.time.Clock()
 
     # Initialize game objects
     real_madrid = Team("Real Madrid", constants.RED, 0.8, 0.7)
     kairat = Team("Kairat", constants.YELLOW, 0.6, 0.5)
-    real_madrid.create_players(constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT)
-    kairat.create_players(constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT)
+    real_madrid.create_players(constants.FIELD_WIDTH, constants.FIELD_HEIGHT)
+    kairat.create_players(constants.FIELD_WIDTH, constants.FIELD_HEIGHT)
     all_players = real_madrid.team_members + kairat.team_members
     ball = Ball(
-        (constants.SCREEN_WIDTH // 2, constants.SCREEN_HEIGHT // 2),
+        (constants.FIELD_WIDTH // 2, constants.FIELD_HEIGHT // 2),
         7,
         constants.BALL_COLOR,
     )
@@ -88,8 +88,8 @@ def run_simulation(load_models=False):
                 SCREEN.blit(
                     text,
                     (
-                        constants.SCREEN_WIDTH // 2 - 25,
-                        constants.SCREEN_HEIGHT // 2 - 25,
+                        constants.FIELD_WIDTH // 2 - 25,
+                        constants.FIELD_HEIGHT // 2 - 25,
                     ),
                 )
                 pygame.display.flip()
@@ -105,7 +105,7 @@ def run_simulation(load_models=False):
                 for team in (real_madrid, kairat):
                     team.reset_positions()
                 ball.position = Vector2(
-                    constants.SCREEN_WIDTH // 2, constants.SCREEN_HEIGHT // 2
+                    constants.FIELD_WIDTH // 2, constants.FIELD_HEIGHT // 2
                 )
                 ball.velocity = Vector2(0, 0)
                 countdown_active = True
@@ -118,8 +118,8 @@ def run_simulation(load_models=False):
                 SCREEN.blit(
                     text,
                     (
-                        constants.SCREEN_WIDTH // 2 - 150,
-                        constants.SCREEN_HEIGHT // 2 - 30,
+                        constants.FIELD_WIDTH // 2 - 150,
+                        constants.FIELD_HEIGHT // 2 - 30,
                     ),
                 )
                 pygame.display.flip()
@@ -159,16 +159,16 @@ def run_simulation(load_models=False):
                 player.update(
                     action,
                     ball,
-                    constants.SCREEN_WIDTH,
-                    constants.SCREEN_HEIGHT,
+                    constants.FIELD_WIDTH,
+                    constants.FIELD_HEIGHT,
                     team.team_members,
                 )
             elif isinstance(player, Defender):
                 player.update(
                     action,
                     ball,
-                    constants.SCREEN_WIDTH,
-                    constants.SCREEN_HEIGHT,
+                    constants.FIELD_WIDTH,
+                    constants.FIELD_HEIGHT,
                     opponent_team.team_members,
                 )
             else:
@@ -176,8 +176,8 @@ def run_simulation(load_models=False):
                     action,
                     ball,
                     team.team_members,
-                    constants.SCREEN_WIDTH,
-                    constants.SCREEN_HEIGHT,
+                    constants.FIELD_WIDTH,
+                    constants.FIELD_HEIGHT,
                     constants.SPEED,
                 )
 
@@ -189,13 +189,13 @@ def run_simulation(load_models=False):
                 )
             else:
                 player.separate_from_others(team.team_members)
-            player.stay_in_zone(constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT)
+            player.stay_in_zone(constants.FIELD_WIDTH, constants.FIELD_HEIGHT)
 
         ball.move()
-        ball.check_bounds(constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT)
+        ball.check_bounds(constants.FIELD_WIDTH, constants.FIELD_HEIGHT)
 
-        goal_top = (constants.SCREEN_HEIGHT - constants.GOAL_HEIGHT) // 2
-        goal_bottom = (constants.SCREEN_HEIGHT + constants.GOAL_HEIGHT) // 2
+        goal_top = (constants.FIELD_HEIGHT - constants.GOAL_HEIGHT) // 2
+        goal_bottom = (constants.FIELD_HEIGHT + constants.GOAL_HEIGHT) // 2
         if (
             ball.position.x - ball.radius <= 0
             and goal_top <= ball.position.y <= goal_bottom
@@ -203,7 +203,7 @@ def run_simulation(load_models=False):
             kairat.score += 1
             goal_scored_team_name = "kairat"
         elif (
-            ball.position.x + ball.radius >= constants.SCREEN_WIDTH
+            ball.position.x + ball.radius >= constants.FIELD_WIDTH
             and goal_top <= ball.position.y <= goal_bottom
         ):
             real_madrid.score += 1
@@ -212,7 +212,7 @@ def run_simulation(load_models=False):
         if goal_scored_team_name:
             print(f"Goal for {goal_scored_team_name}!")
             ball.position = Vector2(
-                constants.SCREEN_WIDTH // 2, constants.SCREEN_HEIGHT // 2
+                constants.FIELD_WIDTH // 2, constants.FIELD_HEIGHT // 2
             )
             ball.velocity = Vector2(0, 0)
             for p in all_players:
@@ -229,8 +229,8 @@ def run_simulation(load_models=False):
             SCREEN.blit(
                 text,
                 (
-                    constants.SCREEN_WIDTH // 2 - 250,
-                    constants.SCREEN_HEIGHT // 2 - 50,
+                    constants.FIELD_WIDTH // 2 - 250,
+                    constants.FIELD_HEIGHT // 2 - 50,
                 ),
             )
             draw_scores(SCREEN, real_madrid, kairat)
