@@ -5,11 +5,13 @@ import time
 import pygame
 from pygame import Vector2
 
-from src import constants, helping
-from src.models.ball import Ball
-from src.models.players import Defender, Goalkeeper, Midfielder
-from src.models.team import Team
-from src.utils import draw_field, draw_scores, draw_timer
+import constants
+import helping
+
+from .models.ball import Ball
+from .models.players import Defender, Goalkeeper, Midfielder
+from .models.team import Team
+from .utils import draw_field, draw_scores, draw_timer
 
 
 def run_simulation(load_models=False):

@@ -2,10 +2,12 @@ import os
 
 from pygame import Vector2
 
-from src import constants, helping
-from src.models.ball import Ball
-from src.models.players import Defender, Goalkeeper, Midfielder
-from src.models.team import Team
+import constants
+import helping
+
+from .models.ball import Ball
+from .models.players import Defender, Goalkeeper, Midfielder
+from .models.team import Team
 
 
 def run_training(num_episodes, speed_multiplier=10):

@@ -1,7 +1,7 @@
 import pygame
 from pygame.math import Vector2
 
-from src import constants
+from .. import constants
 
 
 class Ball:

@@ -1,8 +1,9 @@
 import csv
 import os
 
-from src import constants
-from src.models.players import Defender, Goalkeeper, Midfielder
+import constants
+
+from .models.players import Defender, Goalkeeper, Midfielder
 
 
 def get_last_episode(filename="scores.csv"):

@@ -1,6 +1,6 @@
 import pygame
 
-from src import constants
+import constants
 
 
 def draw_field(screen):
