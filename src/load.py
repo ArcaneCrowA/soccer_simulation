@@ -5,17 +5,18 @@ import time
 import pygame
 from pygame import Vector2
 
-import constants
-import helping
-
+from . import constants, helping
+from .database import init_db
 from .models.ball import Ball
 from .models.players import Defender, Goalkeeper, Midfielder
 from .models.team import Team
+from .statistics import create_pass_network
 from .utils import draw_field, draw_scores, draw_timer
 
 
 def run_simulation(load_models=False):
     """Runs the simulation with graphical output."""
+    init_db()
     pygame.init()
     pygame.display.set_caption("Soccer Simulation")
     SCREEN = pygame.display.set_mode(
@@ -35,6 +36,7 @@ def run_simulation(load_models=False):
         constants.BALL_COLOR,
     )
 
+    pass_network = create_pass_network()
     if load_models:
         print("Loading pre-trained models for simulation...")
         for player in all_players:
@@ -162,6 +164,7 @@ def run_simulation(load_models=False):
                     constants.FIELD_WIDTH,
                     constants.FIELD_HEIGHT,
                     team.team_members,
+                    opponent_team.team_members,
                 )
             elif isinstance(player, Defender):
                 player.update(
@@ -169,6 +172,7 @@ def run_simulation(load_models=False):
                     ball,
                     constants.FIELD_WIDTH,
                     constants.FIELD_HEIGHT,
+                    team.team_members,
                     opponent_team.team_members,
                 )
             else:
@@ -176,6 +180,7 @@ def run_simulation(load_models=False):
                     action,
                     ball,
                     team.team_members,
+                    opponent_team.team_members,
                     constants.FIELD_WIDTH,
                     constants.FIELD_HEIGHT,
                     constants.SPEED,

@@ -2,24 +2,23 @@ import os
 
 from pygame import Vector2
 
-import constants
-import helping
-
+from . import constants, helping
 from .models.ball import Ball
 from .models.players import Defender, Goalkeeper, Midfielder
 from .models.team import Team
 
 
-def run_training(num_episodes, speed_multiplier=10):
+def run_training(num_episodes, speed_multiplier=10, replay_interval=10):
     """
     Runs the simulation in headless mode for training.
 
     Args:
         num_episodes: Number of training episodes
         speed_multiplier: How much faster to run the simulation (1 = normal speed)
+        replay_interval: Call replay every N ticks.
     """
     print(
-        f"Starting training for {num_episodes} episodes (speed: {speed_multiplier}x)..."
+        f"Starting training for {num_episodes} episodes (speed: {speed_multiplier}x, replay_interval: {replay_interval})..."
     )
 
     # Initialize game objects
@@ -100,8 +99,9 @@ def run_training(num_episodes, speed_multiplier=10):
                             current_state,
                             done,
                         )
-                        if hasattr(player, "replay"):
-                            player.replay()
+                        if game_ticks % replay_interval == 0:
+                            if hasattr(player, "replay"):
+                                player.replay()
 
                     action = player.choose_action(current_state)
                     player_memory[player] = (current_state, action)
@@ -113,6 +113,7 @@ def run_training(num_episodes, speed_multiplier=10):
                             constants.FIELD_WIDTH,
                             constants.FIELD_HEIGHT,
                             team.team_members,
+                            opponent_team.team_members,
                         )
                     elif isinstance(player, Defender):
                         player.update(
@@ -120,6 +121,7 @@ def run_training(num_episodes, speed_multiplier=10):
                             ball,
                             constants.FIELD_WIDTH,
                             constants.FIELD_HEIGHT,
+                            team.team_members,
                             opponent_team.team_members,
                         )
                     else:
@@ -127,6 +129,7 @@ def run_training(num_episodes, speed_multiplier=10):
                             action,
                             ball,
                             team.team_members,
+                            opponent_team.team_members,
                             constants.FIELD_WIDTH,
                             constants.FIELD_HEIGHT,
                             constants.SPEED,

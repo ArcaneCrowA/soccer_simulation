@@ -2,11 +2,14 @@ import math
 import random
 from collections import deque
 
+import numpy as np
 import pygame
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from pygame.math import Vector2
+
+from .. import database, statistics
 
 
 # DQN Model
@@ -25,7 +28,7 @@ class DQN(nn.Module):
 
 class Player:
     def __init__(
-        self, name, accuracy, defence, position, radius, color, team_name
+        self, name, accuracy, defence, position, radius, color, team_name, role
     ):
         self.name = name
         self.accuracy = accuracy
@@ -36,7 +39,13 @@ class Player:
         self.radius = radius
         self.color = color
         self.team_name = team_name
+        self.role = role
+        self.skill = statistics.assign_player_skill(role)
         self.last_action = None
+        self.pass_network = statistics.create_pass_network()
+
+    def get_role(self):
+        return self.role
 
     def load_model(self, path, for_training=False):
         self.dqn.load_state_dict(torch.load(path))
@@ -80,7 +89,11 @@ class Player:
         self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
 
     def choose_action(self, state):
-        action = self.choose_action(state)
+        if random.random() <= self.epsilon:
+            action = random.randint(0, self.action_size - 1)
+        else:
+            with torch.no_grad():
+                action = self.dqn(state.unsqueeze(0)).argmax().item()
         self.last_action = action
         return action
 
@@ -107,7 +120,9 @@ class Player:
             <= self.radius + ball.radius + kick_range
         )
 
-    def kick_ball(self, ball, target_position, kick_power):
+    def kick_ball(
+        self, ball, target_position, kick_power, teammates, opponents
+    ):
         direction = target_position - ball.position
 
         # Prevent zero-length vector
@@ -115,6 +130,90 @@ class Player:
             return  # Skip kick if ball is exactly under player
 
         direction = direction.normalize()
+
+        # --- Pass Prediction ---
+        passer_role = self.get_role()
+        target_player = min(
+            teammates, key=lambda p: p.distance_to(target_position)
+        )
+        target_role = target_player.get_role()
+        distance = self.distance_to(target_position)
+        angle = abs(direction.angle_to(Vector2(1, 0)))
+        defender_proximity = min(
+            [self.distance_to(p.position) for p in opponents]
+        )
+        passer_speed = self.velocity.length()
+        target_speed = target_player.velocity.length()
+
+        def discretize(value, bins):
+            return bins[
+                min(
+                    np.digitize(value, [b[1] for b in bins[:-1]]), len(bins) - 1
+                )
+            ][0]
+
+        distance_bin = discretize(
+            distance, [("Short", 50), ("Medium", 150), ("Long", float("inf"))]
+        )
+        angle_bin = discretize(
+            angle, [("Easy", 45), ("Moderate", 90), ("Hard", float("inf"))]
+        )
+        defender_prox_bin = discretize(
+            defender_proximity,
+            [("Close", 50), ("Medium", 150), ("Far", float("inf"))],
+        )
+        passer_speed_bin = discretize(
+            passer_speed, [("Low", 2), ("Medium", 5), ("High", float("inf"))]
+        )
+        target_speed_bin = discretize(
+            target_speed, [("Low", 2), ("Medium", 5), ("High", float("inf"))]
+        )
+        skill_bin = discretize(
+            self.skill, [("Low", 0.7), ("Medium", 0.85), ("High", float("inf"))]
+        )
+
+        evidence = {
+            "PasserRole": passer_role,
+            "TargetRole": target_role,
+            "DistanceToTarget": distance_bin,
+            "AngleToTarget": angle_bin,
+            "DefenderProximity": defender_prox_bin,
+            "PasserSpeed": passer_speed_bin,
+            "TargetSpeed": target_speed_bin,
+            "PassType": "Ground",  # Assuming ground pass for now
+            "Pressure": "Low",  # Assuming low pressure for now
+            "PlayerSkill": skill_bin,
+        }
+
+        prediction, confidence, probability = statistics.predict_pass_success(
+            self.pass_network, evidence
+        )
+
+        print("--- Pass Prediction ---")
+        print(f"Passer: {self.name} ({passer_role})")
+        print(f"Target: {target_player.name} ({target_role})")
+        print(
+            f"Prediction: {prediction} (Confidence: {confidence:.2f}, Probability: {probability:.2f})"
+        )
+        print(f"Evidence: {evidence}")
+
+        database.save_pass(
+            self.name,
+            passer_role,
+            target_player.name,
+            target_role,
+            distance,
+            angle,
+            defender_proximity,
+            passer_speed,
+            target_speed,
+            "Ground",
+            "Low",
+            self.skill,
+            prediction,
+            confidence,
+            probability,
+        )
 
         angle_dev = (1 - self.accuracy) * 90
         deviation = random.uniform(-angle_dev, angle_dev)
@@ -178,7 +277,7 @@ class Player:
 
 class Goalkeeper(Player):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs, role="Goalkeeper")
         self.start_position = self.position.copy()
         self.state_size = 8  # e.g., ball_x,y,vel_x,y, own_x,y, goal_dist_x,y
         self.action_size = 3  # move, dive, stay
@@ -215,7 +314,9 @@ class Goalkeeper(Player):
         with torch.no_grad():
             return self.dqn(state.unsqueeze(0)).argmax().item()
 
-    def update(self, action, ball, field_width, field_height, teammates):
+    def update(
+        self, action, ball, field_width, field_height, teammates, opponents
+    ):
         penalty_area_width = 150
         min_x = (
             self.radius
@@ -246,15 +347,17 @@ class Goalkeeper(Player):
                     break  # Found one, that's good enough
 
             if best_mate:
-                self.kick_ball(ball, best_mate.position, kick_power=20)
+                self.kick_ball(
+                    ball, best_mate.position, 20, teammates, opponents
+                )
             else:  # Fallback: kick forward to center
                 kick_target = Vector2(field_width / 2, self.position.y)
-                self.kick_ball(ball, kick_target, kick_power=20)
+                self.kick_ball(ball, kick_target, 20, teammates, opponents)
 
 
 class Defender(Player):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs, role="Defender")
         self.start_position = self.position.copy()
         self.state_size = 10  # ball_x,y,vel_x,y, own_x,y, opponent_dist, goal_dist_x,y, zone_dist
         self.action_size = 4  # tackle, intercept, move_to_ball, return_to_pos
@@ -298,7 +401,9 @@ class Defender(Player):
         with torch.no_grad():
             return self.dqn(state.unsqueeze(0)).argmax().item()
 
-    def update(self, action, ball, field_width, field_height, opponents):
+    def update(
+        self, action, ball, field_width, field_height, teammates, opponents
+    ):
         def_x = (
             field_width // 4
             if self.team_name == "Real Madrid"
@@ -314,7 +419,11 @@ class Defender(Player):
                 0.6 if self.team_name == "Real Madrid" else 0.4
             )
             self.kick_ball(
-                ball, Vector2(target_x, random.uniform(0, field_height)), 10
+                ball,
+                Vector2(target_x, random.uniform(0, field_height)),
+                10,
+                teammates,
+                opponents,
             )
         elif (
             action == 1 and in_half and self.distance_to(ball.position) < 200
@@ -328,7 +437,7 @@ class Defender(Player):
 
 class Midfielder(Player):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs, role="Midfielder")
         self.start_position = self.position.copy()
         self.state_size = (
             9  # pos_x,y, ball_x,y,vel_x,y, teammate_dist, goal_dist, can_kick
@@ -372,7 +481,16 @@ class Midfielder(Player):
         with torch.no_grad():
             return self.dqn(state.unsqueeze(0)).argmax().item()
 
-    def update(self, action, ball, teammates, field_width, field_height, speed):
+    def update(
+        self,
+        action,
+        ball,
+        teammates,
+        opponents,
+        field_width,
+        field_height,
+        speed,
+    ):
         # --- Movement Actions ---
         if action == 0:  # Move North
             self.position.y -= speed
@@ -401,14 +519,14 @@ class Midfielder(Player):
                 # Simple rule: shoot at goal
                 goal_x = field_width if self.team_name == "Real Madrid" else 0
                 goal_center = Vector2(goal_x, field_height / 2)
-                self.kick_ball(ball, goal_center, kick_power=20)
+                self.kick_ball(ball, goal_center, 20, teammates, opponents)
 
         # action == 9 is "Stay Still", so we do nothing.
 
 
 class Forwards(Player):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs, role="Forwards")
         self.start_position = self.position.copy()
         self.state_size = (
             9  # pos_x,y, ball_x,y,vel_x,y, teammate_dist, goal_dist, can_kick
@@ -451,7 +569,16 @@ class Forwards(Player):
         with torch.no_grad():
             return self.dqn(state.unsqueeze(0)).argmax().item()
 
-    def update(self, action, ball, teammates, field_width, field_height, speed):
+    def update(
+        self,
+        action,
+        ball,
+        teammates,
+        opponents,
+        field_width,
+        field_height,
+        speed,
+    ):
         # --- Movement Actions ---
         if action == 0:  # Move North
             self.position.y -= speed
@@ -480,6 +607,6 @@ class Forwards(Player):
                 # Simple rule: shoot at goal
                 goal_x = field_width if self.team_name == "Real Madrid" else 0
                 goal_center = Vector2(goal_x, field_height / 2)
-                self.kick_ball(ball, goal_center, kick_power=20)
+                self.kick_ball(ball, goal_center, 20, teammates, opponents)
 
         # action == 9 is "Stay Still", so we do nothing.

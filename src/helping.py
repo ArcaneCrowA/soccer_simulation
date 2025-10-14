@@ -1,8 +1,7 @@
 import csv
 import os
 
-import constants
-
+from . import constants
 from .models.players import Defender, Goalkeeper, Midfielder
 
 

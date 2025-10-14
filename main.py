@@ -19,6 +19,12 @@ if __name__ == "__main__":
         help="Training speed multiplier (default: 10). Processes multiple ticks per iteration.",
     )
     parser.add_argument(
+        "--replay-interval",
+        type=int,
+        default=10,
+        help="The interval at which to call the replay method (default: 10).",
+    )
+    parser.add_argument(
         "--load",
         action="store_true",
         help="Load pre-trained models for simulation.",
@@ -28,6 +34,10 @@ if __name__ == "__main__":
     if args.train:
         # In training mode, we don't need the full pygame video setup
         os.environ["SDL_VIDEODRIVER"] = "dummy"
-        run_training(args.train, speed_multiplier=args.speed)
+        run_training(
+            args.train,
+            speed_multiplier=args.speed,
+            replay_interval=args.replay_interval,
+        )
     else:
         run_simulation(load_models=args.load)

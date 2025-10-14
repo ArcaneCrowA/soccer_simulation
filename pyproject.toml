@@ -8,4 +8,5 @@ dependencies = [
     "numpy>=2.3.3",
     "pygame>=2.6.1",
     "torch>=2.7.0",
+    "pgmpy>=0.1.25",
 ]
