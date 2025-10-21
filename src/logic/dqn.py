@@ -72,7 +72,15 @@ class DQNAgent:
             self.epsilon *= self.epsilon_decay
 
     def load(self, name):
-        self.model.load_state_dict(torch.load(name))
+        checkpoint = torch.load(name)
+        self.model.load_state_dict(checkpoint["model_state_dict"])
+        self.epsilon = checkpoint["epsilon"]
 
     def save(self, name):
-        torch.save(self.model.state_dict(), name)
+        torch.save(
+            {
+                "model_state_dict": self.model.state_dict(),
+                "epsilon": self.epsilon,
+            },
+            name,
+        )

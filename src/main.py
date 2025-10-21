@@ -1,20 +1,22 @@
 import argparse
+import json
 import os
+import random
 
 import numpy as np
 
+from src.logic.constants import FIELD_HEIGHT, FIELD_WIDTH
 from src.logic.dqn import DQNAgent
 from src.logic.game import Game
 from src.models import Action, Player, PlayerRole, Team
 
 
-def main(number_of_simulations: int, test_model: bool):
-    state_size = (
-        4  # Example state size (e.g., ball_x, ball_y, player_x, player_y)
-    )
+def main(number_of_simulations: int, test_model: bool, train_model: bool):
+    state_size = 8  # ball_x, ball_y, player_x, player_y, opponent_x, opponent_y, goal_x, goal_y
     action_size = 5  # Example action size (e.g., move_up, move_down, move_left, move_right, shoot)
 
-    agent = DQNAgent(state_size, action_size)
+    agent_trained = DQNAgent(state_size, action_size)
+    agent_opponent = DQNAgent(state_size, action_size)
 
     team1_players = [
         Player(i, 1, PlayerRole.ATTACKER, np.array([20.0, 20.0]))
@@ -30,46 +32,145 @@ def main(number_of_simulations: int, test_model: bool):
 
     if test_model:
         print("Testing model...")
-        agent.load("./src/storage/models/soccer_dqn.pth")
-        agent.epsilon = 0.0
+        agent_trained.load("./src/storage/models/soccer_dqn.pth")
+        agent_trained.epsilon = 0.0
 
-        for e in range(number_of_simulations):
-            game = Game(team1, team2)
+        game = Game(team1, team2)
+        state = game.get_state()
+        for time in range(500):
+            action_trained = agent_trained.act(state)
+            action_untrained = agent_opponent.act(state)
+            _, done = game.step(team1.players[0], Action(action_trained), 1)
+            if done:
+                break
+            _, done = game.step(team2.players[0], Action(action_untrained), 2)
+            if done:
+                break
             state = game.get_state()
-            for time in range(500):
-                action = agent.act(state)
-                game.step(team1.players[0], Action(action))
-                state = game.get_state()
-                done = False  # Placeholder for done flag
-                if done:
-                    break
-            print(f"episode: {e + 1}/{number_of_simulations}, score: {time}")
-    else:
+
+        print(f"Final score: {game.score}")
+
+    elif train_model:
         print("Training model...")
+        if os.path.exists("./src/storage/models/soccer_dqn.pth"):
+            agent_trained.load("./src/storage/models/soccer_dqn.pth")
+
+        results = []
+        if os.path.exists("./src/storage/statistics/training_results.json"):
+            with open(
+                "./src/storage/statistics/training_results.json", "r"
+            ) as f:
+                results = json.load(f)
+
+        opponent_models_dir = "./src/storage/models/opponents"
+        os.makedirs(opponent_models_dir, exist_ok=True)
+
+        goal_pos = np.array([FIELD_WIDTH, FIELD_HEIGHT / 2])
+        opponent_goal_pos = np.array([0, FIELD_HEIGHT / 2])
+
+        for e in range(number_of_simulations):
+            opponent_models = os.listdir(opponent_models_dir)
+            if opponent_models:
+                opponent_model_path = os.path.join(
+                    opponent_models_dir, random.choice(opponent_models)
+                )
+                agent_opponent.load(opponent_model_path)
+            else:
+                agent_opponent = DQNAgent(state_size, action_size)
+
+            game = Game(team1, team2)
+            state = game.get_state()
+            for time in range(500):
+                action_trained = agent_trained.act(state)
+                action_opponent = agent_opponent.act(state)
+
+                dist_before = np.linalg.norm(game.ball.position - goal_pos)
+                reward_trained, done_trained = game.step(
+                    team1.players[0], Action(action_trained), 1
+                )
+                dist_after = np.linalg.norm(game.ball.position - goal_pos)
+
+                reward_trained += dist_before - dist_after
+
+                dist_before = np.linalg.norm(
+                    game.ball.position - opponent_goal_pos
+                )
+                reward_opponent, done_opponent = game.step(
+                    team2.players[0], Action(action_opponent), 2
+                )
+                dist_after = np.linalg.norm(
+                    game.ball.position - opponent_goal_pos
+                )
+                reward_opponent += dist_before - dist_after
+
+                done = done_trained or done_opponent
+
+                next_state = game.get_state()
+                agent_trained.remember(
+                    state, action_trained, reward_trained, next_state, done
+                )
+                agent_opponent.remember(
+                    state, action_opponent, reward_opponent, next_state, done
+                )
+
+                state = next_state
+
+                if done:
+                    break
+
+            if len(agent_trained.memory) > 32:
+                agent_trained.replay(32)
+            if len(agent_opponent.memory) > 32:
+                agent_opponent.replay(32)
+
+            if (e + 1) % 100 == 0:
+                agent_trained.save(
+                    os.path.join(opponent_models_dir, f"model_{e + 1}.pth")
+                )
+
+            print(
+                f"episode: {e + 1}/{number_of_simulations}, score: {game.score}, e: {agent_trained.epsilon:.2}"
+            )
+            results.append({"episode": len(results) + 1, "score": game.score})
+
+        agent_trained.save("./src/storage/models/soccer_dqn.pth")
+        with open("./src/storage/statistics/training_results.json", "w") as f:
+            json.dump(results, f)
+
+    else:
+        print(f"Simulating {number_of_simulations} games.")
+        results = []
+        if os.path.exists("./src/storage/statistics/simulation_results.json"):
+            with open(
+                "./src/storage/statistics/simulation_results.json", "r"
+            ) as f:
+                results = json.load(f)
+
+        agent_trained.load("./src/storage/models/soccer_dqn.pth")
+        agent_trained.epsilon = 0.0
         for e in range(number_of_simulations):
             game = Game(team1, team2)
             state = game.get_state()
             for time in range(500):
-                action = agent.act(state)
-                game.step(team1.players[0], Action(action))
-                next_state = game.get_state()
-                reward = -np.linalg.norm(
-                    game.ball.position - team1.players[0].position
-                )
-                done = False  # Placeholder for done flag
-                agent.remember(state, action, reward, next_state, done)
-                state = next_state
+                action_trained = agent_trained.act(state)
+                action_untrained = agent_opponent.act(state)
+                _, done = game.step(team1.players[0], Action(action_trained), 1)
                 if done:
                     break
-            if len(agent.memory) > 32:
-                agent.replay(32)
+                _, done = game.step(
+                    team2.players[0], Action(action_untrained), 2
+                )
+                if done:
+                    break
+                state = game.get_state()
+            results.append({"episode": len(results) + 1, "score": game.score})
             print(
-                f"episode: {e + 1}/{number_of_simulations}, score: {time}, e: {agent.epsilon:.2}"
+                f"episode: {e + 1}/{number_of_simulations}, score: {game.score}"
             )
-        os.makedirs("./src/storage/models", exist_ok=True)
-        agent.save("./src/storage/models/soccer_dqn.pth")
 
-    print(f"Simulating {number_of_simulations} games.")
+        os.makedirs("./src/storage/statistics", exist_ok=True)
+        with open("./src/storage/statistics/simulation_results.json", "w") as f:
+            json.dump(results, f)
 
 
 if __name__ == "__main__":
@@ -78,10 +179,25 @@ if __name__ == "__main__":
         description="Simulates soccer results",
     )
     parser.add_argument(
-        "-t", type=int, default=1, help="uv run -m src.main.py -t [n]"
+        "-t",
+        "--train",
+        type=int,
+        default=0,
+        help="Number of training simulations",
     )
     parser.add_argument(
-        "--test", action="store_true", help="uv run -m src.main.py --test"
+        "--test", action="store_true", help="Test trained vs untrained model"
+    )
+    parser.add_argument(
+        "-s",
+        "--simulate",
+        type=int,
+        default=0,
+        help="Number of simulations to run",
     )
     args = parser.parse_args()
-    main(args.t, args.test)
+    main(
+        args.train or args.simulate,
+        args.test,
+        args.train > 0,
+    )
