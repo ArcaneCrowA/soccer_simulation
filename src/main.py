@@ -13,7 +13,7 @@ from src.models import Action, Player, PlayerRole, Team
 
 def main(number_of_simulations: int, test_model: bool, train_model: bool):
     state_size = 8  # ball_x, ball_y, player_x, player_y, opponent_x, opponent_y, goal_x, goal_y
-    action_size = 5  # Example action size (e.g., move_up, move_down, move_left, move_right, shoot)
+    action_size = 5  # Example action size (e.g., move_up, move_down, move_left, move_right, pass)
 
     agent_trained = DQNAgent(state_size, action_size)
     agent_opponent = DQNAgent(state_size, action_size)
@@ -61,6 +61,11 @@ def main(number_of_simulations: int, test_model: bool, train_model: bool):
                 "./src/storage/statistics/training_results.json", "r"
             ) as f:
                 results = json.load(f)
+
+        pass_stats = {}
+        if os.path.exists("./src/storage/player_stats.json"):
+            with open("./src/storage/player_stats.json", "r") as f:
+                pass_stats = json.load(f)
 
         opponent_models_dir = "./src/storage/models/opponents"
         os.makedirs(opponent_models_dir, exist_ok=True)
@@ -133,9 +138,30 @@ def main(number_of_simulations: int, test_model: bool, train_model: bool):
             )
             results.append({"episode": len(results) + 1, "score": game.score})
 
+            for player_id, stats in game.pass_stats.items():
+                if player_id not in pass_stats:
+                    pass_stats[player_id] = {"success": 0, "fail": 0}
+                pass_stats[player_id]["success"] += stats["success"]
+                pass_stats[player_id]["fail"] += stats["fail"]
+
+        for player in team1.players + team2.players:
+            player_id = str(player.player_id)
+            if player_id in pass_stats:
+                total_passes = (
+                    pass_stats[player_id]["success"]
+                    + pass_stats[player_id]["fail"]
+                )
+                if total_passes > 0:
+                    player.skill = (
+                        pass_stats[player_id]["success"] / total_passes
+                    )
+
         agent_trained.save("./src/storage/models/soccer_dqn.pth")
         with open("./src/storage/statistics/training_results.json", "w") as f:
             json.dump(results, f)
+
+        with open("./src/storage/player_stats.json", "w") as f:
+            json.dump(pass_stats, f)
 
     else:
         print(f"Simulating {number_of_simulations} games.")

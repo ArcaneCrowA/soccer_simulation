@@ -2,6 +2,7 @@ import logging
 
 import numpy as np
 
+from src.logic.bayesian_network import PassSuccessPredictor
 from src.logic.constants import (
     BALL_RADIUS,
     FIELD_HEIGHT,
@@ -22,6 +23,9 @@ class Game:
         self.ball = Ball(np.array([FIELD_WIDTH / 2, FIELD_HEIGHT / 2]))
         self.ticks = 0
         self.score = {1: 0, 2: 0}
+        self.pass_predictor = PassSuccessPredictor()
+        self.ball_owner = None
+        self.pass_stats = {}  # {player_id: {"success": 0, "fail": 0}}
 
     def get_state(self):
         player_pos = self.team1.players[0].position
@@ -45,19 +49,111 @@ class Game:
             player.velocity = np.array([-MAX_PLAYER_SPEED, 0])
         elif action == Action.MOVE_RIGHT:
             player.velocity = np.array([MAX_PLAYER_SPEED, 0])
-        elif action == Action.SHOOT:
+        elif action == Action.PASS:
             if (
                 np.linalg.norm(player.position - self.ball.position)
                 < PLAYER_RADIUS + BALL_RADIUS
             ):
-                if team_id == 1:
-                    goal_pos = np.array([FIELD_WIDTH, FIELD_HEIGHT / 2])
+                teammates = (
+                    self.team1.players if team_id == 1 else self.team2.players
+                )
+                closest_teammate = min(
+                    [p for p in teammates if p.player_id != player.player_id],
+                    key=lambda p: np.linalg.norm(p.position - player.position),
+                )
+                distance = np.linalg.norm(
+                    closest_teammate.position - player.position
+                )
+                passer_speed = np.linalg.norm(player.velocity)
+
+                if passer_speed > 0:
+                    player_direction = player.velocity / passer_speed
+                    teammate_direction = (
+                        closest_teammate.position - player.position
+                    ) / distance
+                    angle = np.arccos(
+                        np.clip(
+                            np.dot(player_direction, teammate_direction),
+                            -1.0,
+                            1.0,
+                        )
+                    )
                 else:
-                    goal_pos = np.array([0, FIELD_HEIGHT / 2])
-                direction = goal_pos - self.ball.position
+                    angle = 0.0
+
+                opponents = (
+                    self.team2.players if team_id == 1 else self.team1.players
+                )
+                closest_defender = min(
+                    opponents,
+                    key=lambda p: np.linalg.norm(p.position - player.position),
+                )
+                defender_proximity = np.linalg.norm(
+                    closest_defender.position - player.position
+                )
+                target_speed = np.linalg.norm(closest_teammate.velocity)
+
+                if distance < 30:
+                    pass_type = PassType.SHORT
+                else:
+                    pass_type = PassType.LONG
+
+                pressure = (
+                    1 / defender_proximity if defender_proximity > 0 else 1.0
+                )
+
+                pass_success_prob = self.pass_predictor.predict(
+                    player.skill,
+                    distance,
+                    player.role,
+                    closest_teammate.role,
+                    angle,
+                    passer_speed,
+                    defender_proximity,
+                    target_speed,
+                    pass_type,
+                    pressure,
+                )
+                logging.info(
+                    f"Pass success probability: {pass_success_prob:.2f}"
+                )
+
+                self.intended_recipient = closest_teammate
+
+                direction = closest_teammate.position - self.ball.position
                 self.ball.velocity = (
                     direction / np.linalg.norm(direction)
                 ) * MAX_BALL_SPEED
+
+        # Check for ball possession
+        for p in self.team1.players + self.team2.players:
+            if (
+                np.linalg.norm(p.position - self.ball.position)
+                < PLAYER_RADIUS + BALL_RADIUS
+            ):
+                if self.ball_owner and self.ball_owner.player_id != p.player_id:
+                    if (
+                        self.intended_recipient
+                        and self.intended_recipient.player_id == p.player_id
+                    ):
+                        passer_id = self.ball_owner.player_id
+                        if passer_id not in self.pass_stats:
+                            self.pass_stats[passer_id] = {
+                                "success": 0,
+                                "fail": 0,
+                            }
+                        self.pass_stats[passer_id]["success"] += 1
+                    elif self.intended_recipient:
+                        passer_id = self.ball_owner.player_id
+                        if passer_id not in self.pass_stats:
+                            self.pass_stats[passer_id] = {
+                                "success": 0,
+                                "fail": 0,
+                            }
+                        self.pass_stats[passer_id]["fail"] += 1
+                self.ball_owner = p
+                self.intended_recipient = None
+                break
 
         # Move players
         for p in self.team1.players + self.team2.players:

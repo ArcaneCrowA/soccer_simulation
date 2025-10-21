@@ -10,12 +10,14 @@ class Player:
         team_id: int,
         role: PlayerRole,
         position: np.ndarray,
+        skill: float = 0.5,
     ):
         self.player_id = player_id
         self.team_id = team_id
         self.role = role
         self.position = position
         self.velocity = np.zeros(2)
+        self.skill = skill
 
     def move(self):
         self.position += self.velocity

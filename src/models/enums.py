@@ -13,4 +13,4 @@ class Action(Enum):
     MOVE_DOWN = 1
     MOVE_LEFT = 2
     MOVE_RIGHT = 3
-    SHOOT = 4
+    PASS = 4
